@@ -13,7 +13,8 @@ import {
   Percent,
   Clock,
   HelpCircle,
-  Check
+  Check,
+  Share2
 } from "lucide-react";
 import { ReportCardData, BUNDESLAENDER } from "../types";
 
@@ -100,6 +101,7 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
   const [currentIndex, setCurrentIndex] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const totalCards = 5;
@@ -129,6 +131,44 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
     .sort((a, b) => a.score - b.score);
 
   const topThree = rankedSubjects.slice(0, 3);
+
+  // Share Stats Handler
+  const handleShare = async () => {
+    const textToShare = `🎓 Mein Schulzeit Wrapped ${new Date().getFullYear()} (${stateInfo.name})!
+📊 Meine Bilanz:
+⏰ Unterrichtsstunden: ${lessons.toLocaleString()} im Klassenzimmer
+📝 Hausaufgaben: ~${homework} gelöste Aufgaben (Schätzung)
+🏆 Top Fächer: ${topThree.length > 0 ? topThree.map(t => `${t.subject} (${t.grade})`).join(", ") : "Keine Noten extrahiert"}
+🚀 Anwesenheit: ${attendanceRate}% (${schoolDays - totalAbsent} von ${schoolDays} Tagen da gewesen!)
+
+Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} 🎒🔥`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Schulzeit Wrapped",
+          text: textToShare,
+          url: window.location.origin,
+        });
+      } catch (err) {
+        console.log("Web Share abgebrochen oder fehlgeschlagen:", err);
+        fallbackShare(textToShare);
+      }
+    } else {
+      fallbackShare(textToShare);
+    }
+  };
+
+  const fallbackShare = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 3000);
+    }).catch(err => {
+      console.error("Clipboard copy failed:", err);
+      const encodedText = encodeURIComponent(text);
+      window.open(`https://api.whatsapp.com/send?text=${encodedText}`, "_blank");
+    });
+  };
 
   // Story Navigation
   const nextCard = () => {
@@ -286,9 +326,6 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
                     Unterrichtsstunden
                   </span>
                 </div>
-                <p className="text-xs text-violet-200/80 max-w-xs mx-auto leading-relaxed">
-                  (Basiert auf {schoolDays} Schultagen abzüglich deiner {totalAbsent} Fehltage, hochgerechnet mit 6 Stunden pro Tag.)
-                </p>
               </div>
             )}
 
@@ -424,65 +461,117 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
             {/* CARD 5: Comprehensive Summary */}
             {currentIndex === 4 && (
               <div className="space-y-4">
-                <div className="mb-2">
-                  <span className="text-xs font-mono font-bold tracking-widest text-fuchsia-300 uppercase block mb-1">
-                    Jahresrückblick
+                <div className="text-center mb-3">
+                  <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full inline-block mb-1.5 shadow-sm">
+                    Jahresrückblick {new Date().getFullYear()}
                   </span>
                   <h4 className="font-sans font-black text-2xl leading-none text-white tracking-tight">
-                    Deine Schulzeit Wrapped
+                    DEINE SCHULZEIT WRAPPED
                   </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 font-mono uppercase tracking-wider">
+                    Zeugnis-Zusammenfassung • {stateInfo.name}
+                  </p>
                 </div>
 
-                {/* Dashboard grid */}
-                <div className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
-                  <div className="bg-white/10 border border-white/10 p-3 rounded-2xl text-left backdrop-blur-sm shadow">
-                    <span className="text-[10px] font-mono text-fuchsia-200 uppercase block mb-1">Stunden</span>
-                    <span className="font-sans font-black text-xl text-white block leading-tight">
-                      {lessons.toLocaleString()}
-                    </span>
-                    <span className="text-[9px] text-white/60 block mt-0.5">Klassenzimmer</span>
+                {/* Dashboard Grid */}
+                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+                  {/* Stats 1: Unterrichtsstunden */}
+                  <div className="bg-white/[0.05] border border-white/10 p-3.5 rounded-2xl text-left backdrop-blur-md shadow-md hover:border-white/20 transition-all flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-12 h-12 bg-indigo-500/10 rounded-full blur-md -mr-2 -mt-2 group-hover:bg-indigo-500/20 transition-all" />
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Clock size={12} className="text-indigo-400" />
+                        <span className="text-[9px] font-mono font-bold text-indigo-300 uppercase tracking-wider">Zeit im Unterricht</span>
+                      </div>
+                      <span className="font-sans font-black text-2xl text-white block leading-tight">
+                        {lessons.toLocaleString()}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">Unterrichtsstunden</span>
                   </div>
 
-                  <div className="bg-white/10 border border-white/10 p-3 rounded-2xl text-left backdrop-blur-sm shadow">
-                    <span className="text-[10px] font-mono text-fuchsia-200 uppercase block mb-1">Hausaufgaben</span>
-                    <span className="font-sans font-black text-xl text-white block leading-tight">
-                      ~{homework}
-                    </span>
-                    <span className="text-[9px] text-white/60 block mt-0.5">Schätzung</span>
+                  {/* Stats 2: Hausaufgaben */}
+                  <div className="bg-white/[0.05] border border-white/10 p-3.5 rounded-2xl text-left backdrop-blur-md shadow-md hover:border-white/20 transition-all flex flex-col justify-between relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-12 h-12 bg-pink-500/10 rounded-full blur-md -mr-2 -mt-2 group-hover:bg-pink-500/20 transition-all" />
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <BookOpen size={12} className="text-pink-400" />
+                        <span className="text-[9px] font-mono font-bold text-pink-300 uppercase tracking-wider">Hausaufgaben</span>
+                      </div>
+                      <span className="font-sans font-black text-2xl text-white block leading-tight">
+                        ~{homework}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">Gelöste Aufgaben</span>
                   </div>
 
-                  <div className="bg-white/10 border border-white/10 p-3 rounded-2xl text-left backdrop-blur-sm shadow col-span-2">
-                    <span className="text-[10px] font-mono text-fuchsia-200 uppercase block mb-1">Top Fächer</span>
-                    <div className="flex gap-1.5 mt-1">
+                  {/* Stats 3: Top Fächer */}
+                  <div className="bg-white/[0.05] border border-white/10 p-3.5 rounded-2xl text-left backdrop-blur-md shadow-md hover:border-white/20 transition-all col-span-2 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-lg -mr-4 -mt-4" />
+                    <div className="flex items-center gap-1.5 mb-2.5">
+                      <Award size={13} className="text-amber-400" />
+                      <span className="text-[9px] font-mono font-bold text-amber-300 uppercase tracking-wider">Deine akademischen Highlights</span>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
                       {topThree.length === 0 ? (
-                        <span className="text-xs text-white/50">Keine Noten extrahiert</span>
+                        <span className="text-xs text-slate-500 italic">Keine bewerteten Fächer gefunden</span>
                       ) : (
                         topThree.map((item, index) => (
-                          <div key={item.id} className="flex-1 bg-black/30 px-2 py-1 rounded-lg flex justify-between items-center text-[10px] font-bold">
-                            <span className="truncate max-w-[50px]">{item.subject}</span>
-                            <span className="text-fuchsia-300 ml-1 shrink-0">{item.grade}</span>
+                          <div key={item.id} className="flex justify-between items-center bg-black/30 hover:bg-black/40 px-3 py-2 rounded-xl text-xs font-bold border border-white/[0.03] transition-colors">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400 font-mono text-[10px]">#0{index + 1}</span>
+                              <span className="text-slate-100 truncate max-w-[150px]">{item.subject}</span>
+                            </div>
+                            <span className="bg-white text-slate-950 font-black px-2 py-0.5 rounded-lg text-xs shadow-sm">
+                              {item.grade}
+                            </span>
                           </div>
                         ))
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-white/10 border border-white/10 p-3 rounded-2xl text-left backdrop-blur-sm shadow col-span-2 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] font-mono text-fuchsia-200 uppercase block mb-0.5">Anwesenheit</span>
-                      <span className="text-[11px] text-white/80 leading-tight">
-                        {schoolDays - totalAbsent} von {schoolDays} Tagen da gewesen
+                  {/* Stats 4: Anwesenheit */}
+                  <div className="bg-white/[0.05] border border-white/10 p-3.5 rounded-2xl text-left backdrop-blur-md shadow-md hover:border-white/20 transition-all col-span-2 flex justify-between items-center relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-14 h-14 bg-cyan-500/10 rounded-full blur-md -mr-2 -mt-2" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <CalendarCheck size={12} className="text-cyan-400" />
+                        <span className="text-[9px] font-mono font-bold text-cyan-300 uppercase tracking-wider">Präsenzquote</span>
+                      </div>
+                      <span className="text-[11px] text-slate-300 leading-snug">
+                        Du warst an <strong>{schoolDays - totalAbsent}</strong> von <strong>{schoolDays}</strong> Tagen aktiv anwesend!
                       </span>
                     </div>
-                    <span className="font-sans font-black text-2xl text-fuchsia-300 ml-2">
-                      {attendanceRate}%
-                    </span>
+                    <div className="text-right shrink-0 ml-4">
+                      <span className="font-sans font-black text-3xl text-cyan-300 block leading-none">
+                        {attendanceRate}%
+                      </span>
+                      <span className="text-[8px] text-slate-400 font-mono tracking-widest uppercase">STABIL</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Helper buttons inside the printable area (only visible if not downloading, but we just let it be) */}
-                <div className="pt-2 text-[10px] text-fuchsia-200/50 italic">
-                  #SchulzeitWrapped {new Date().getFullYear()}
+                {/* Highly authentic, elegant brand badge at the bottom of the card */}
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {/* Tiny visual barcode pattern */}
+                    <div className="flex gap-[1px] items-center h-4 opacity-40">
+                      <div className="w-[1px] h-full bg-white" />
+                      <div className="w-[2px] h-full bg-white" />
+                      <div className="w-[1px] h-full bg-white" />
+                      <div className="w-[3px] h-full bg-white" />
+                      <div className="w-[1px] h-full bg-white" />
+                      <div className="w-[2px] h-full bg-white" />
+                    </div>
+                    <span className="text-[9px] font-mono tracking-[0.15em] text-white/40 uppercase">
+                      SCHULZEITWRAPPED.DE
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-mono text-white/30">
+                    #SCHULZEITWRAPPED
+                  </span>
                 </div>
               </div>
             )}
@@ -507,32 +596,57 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
 
         {/* Action Button depending on card (Export Image on final Card, Download helpers) */}
         {currentIndex === 4 ? (
-          <button
-            onClick={saveAsImage}
-            disabled={downloading}
-            className={`flex-1 py-3 px-4 rounded-2xl font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-lg cursor-pointer ${
-              downloadSuccess
-                ? "bg-emerald-500 text-slate-950 shadow-emerald-500/20 font-bold"
-                : "bg-white text-slate-900 hover:bg-slate-100 shadow-white/10"
-            }`}
-          >
-            {downloading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
-                Speichert...
-              </>
-            ) : downloadSuccess ? (
-              <>
-                <Check size={14} className="stroke-[3]" />
-                Gespeichert!
-              </>
-            ) : (
-              <>
-                <Download size={14} />
-                Als Bild speichern
-              </>
-            )}
-          </button>
+          <div className="flex-1 flex gap-2">
+            {/* Download Button */}
+            <button
+              onClick={saveAsImage}
+              disabled={downloading}
+              className={`flex-1 py-3 px-2.5 rounded-2xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                downloadSuccess
+                  ? "bg-emerald-500 text-slate-950 shadow-emerald-500/20"
+                  : "bg-white text-slate-900 hover:bg-slate-100 shadow-white/10"
+              }`}
+            >
+              {downloading ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+                  Sichern...
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check size={12} className="stroke-[3]" />
+                  Sicher!
+                </>
+              ) : (
+                <>
+                  <Download size={12} />
+                  Sichern
+                </>
+              )}
+            </button>
+
+            {/* Share Button */}
+            <button
+              onClick={handleShare}
+              className={`flex-1 py-3 px-2.5 rounded-2xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                shareSuccess
+                  ? "bg-fuchsia-500 text-white shadow-fuchsia-500/20"
+                  : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/10"
+              }`}
+            >
+              {shareSuccess ? (
+                <>
+                  <Check size={12} className="stroke-[3]" />
+                  Kopiert!
+                </>
+              ) : (
+                <>
+                  <Share2 size={12} />
+                  Teilen
+                </>
+              )}
+            </button>
+          </div>
         ) : (
           <button
             onClick={saveAsImage}
