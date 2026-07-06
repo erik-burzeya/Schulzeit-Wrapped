@@ -68,10 +68,10 @@ Clone the repository and follow the setup instructions provided by Google AI Stu
 
 ## Roadmap
 
-[x] Better animations
-[] Additional recap cards
-[] More educational statistics
-[] Share-View
+[ x ] Better animations
+[ ] Additional recap cards
+[ ] More educational statistics
+[ ] Share-View
 
 ---
 
