@@ -1,0 +1,6 @@
+{
+  "name": "Schulzeit Wrapped",
+  "description": "Erstelle deinen persönlichen Jahresrückblick für deine Schulzeit in Deutschland basierend auf deinem Zeugnis - wie Spotify Wrapped.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
