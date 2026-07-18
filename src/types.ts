@@ -11,6 +11,10 @@ export interface ReportCardData {
   absentDaysExcusedConfirmed: boolean;
   absentDaysUnexcused: string;
   absentDaysUnexcusedConfirmed: boolean;
+  absentLessonsExcused: string;
+  absentLessonsExcusedConfirmed: boolean;
+  absentLessonsUnexcused: string;
+  absentLessonsUnexcusedConfirmed: boolean;
 }
 
 export interface BundeslandInfo {

@@ -4,20 +4,11 @@ import ConfirmationScreen from "./components/ConfirmationScreen";
 import StoryCards from "./components/StoryCards";
 import InfoModal from "./components/InfoModal";
 import { AppScreen, ReportCardData } from "./types";
-import { Sparkles, HelpCircle, Loader2, AlertTriangle, ShieldAlert } from "lucide-react";
-
-const LOADING_MESSAGES = [
-  "Zeugnis-Scan wird gestartet...",
-  "Schulfächer werden identifiziert...",
-  "Lehrerschrift wird entziffert...",
-  "Noten werden digitalisiert...",
-  "Fehltage werden zusammengezählt...",
-  "Unterrichtsstunden werden berechnet...",
-  "Hausaufgabenberge werden vermessen...",
-  "Jahresrückblick wird poliert...",
-];
+import { Sparkles, HelpCircle, Loader2, AlertTriangle } from "lucide-react";
+import { LOCALES } from "./locales";
 
 export default function App() {
+  const [lang, setLang] = useState<"de" | "en">("de");
   const [screen, setScreen] = useState<AppScreen>("start");
   const [selectedState, setSelectedState] = useState<string>("NW");
   const [reportCardData, setReportCardData] = useState<ReportCardData | null>(null);
@@ -27,6 +18,9 @@ export default function App() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  const t = LOCALES[lang];
+  const LOADING_MESSAGES = t.loading_messages;
 
   // Rotate loading messages during extraction
   useEffect(() => {
@@ -54,7 +48,7 @@ export default function App() {
       clearInterval(messageTimer);
       clearInterval(progressTimer);
     };
-  }, [screen]);
+  }, [screen, LOADING_MESSAGES]);
 
   // Call Express API to perform report card extraction using server-side Gemini 3.5 Flash
   const handleStartExtraction = async (base64Image: string, mimeType: string, stateCode: string) => {
@@ -76,7 +70,7 @@ export default function App() {
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || "Extraktionsfehler auf dem Server.");
+        throw new Error(errJson.error || (lang === "en" ? "Extraction failed on server." : "Extraktionsfehler auf dem Server."));
       }
 
       const extracted = await response.json();
@@ -84,7 +78,7 @@ export default function App() {
       // Formulate correct UI state structure
       const mappedSubjects = (extracted.subjects || []).map((s: any) => ({
         id: Math.random().toString(36).substring(2, 9),
-        subject: s.subject || "Unbekannt",
+        subject: s.subject || (lang === "en" ? "Unknown" : "Unbekannt"),
         grade: s.grade || "unleserlich",
         confirmed: false,
       }));
@@ -95,6 +89,10 @@ export default function App() {
         absentDaysExcusedConfirmed: false,
         absentDaysUnexcused: extracted.absentDaysUnexcused || "0",
         absentDaysUnexcusedConfirmed: false,
+        absentLessonsExcused: extracted.absentLessonsExcused || "0",
+        absentLessonsExcusedConfirmed: false,
+        absentLessonsUnexcused: extracted.absentLessonsUnexcused || "0",
+        absentLessonsUnexcusedConfirmed: false,
       };
 
       setLoadingProgress(100);
@@ -105,7 +103,7 @@ export default function App() {
 
     } catch (err: any) {
       console.error("Extraction error in frontend:", err);
-      setErrorMsg(err.message || "Verbindung zum Server fehlgeschlagen. Bitte versuche es mit einem anderen oder kleineren Bild erneut.");
+      setErrorMsg(err.message || t.api_offline_error);
       setScreen("start");
     }
   };
@@ -137,12 +135,14 @@ export default function App() {
               <div className="max-w-xs mx-auto mb-4 bg-red-500/15 border border-red-500/25 text-red-200 text-xs p-3.5 rounded-2xl flex gap-2.5 items-start animate-pulse">
                 <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold mb-0.5">Extraktion fehlgeschlagen</p>
+                  <p className="font-semibold mb-0.5">{t.extraction_failed}</p>
                   <p className="text-red-300/90 leading-relaxed">{errorMsg}</p>
                 </div>
               </div>
             )}
             <StartScreen
+              lang={lang}
+              setLang={setLang}
               onStartExtraction={handleStartExtraction}
               onOpenInfo={() => setIsInfoOpen(true)}
             />
@@ -166,7 +166,7 @@ export default function App() {
               </h3>
 
               <p className="text-slate-400 text-xs leading-relaxed">
-                Unsere künstliche Intelligenz liest dein Zeugnis sicher aus. Das dauert einen kurzen Moment...
+                {t.loading_desc}
               </p>
 
               {/* Glowing horizontal progress bar */}
@@ -177,7 +177,7 @@ export default function App() {
                 />
               </div>
               <span className="text-[10px] font-mono font-bold text-slate-500 tracking-wider">
-                {loadingProgress}% GELESEN
+                {loadingProgress}% {t.loading_progress}
               </span>
             </div>
           </div>
@@ -185,6 +185,8 @@ export default function App() {
 
         {screen === "confirmation" && reportCardData && (
           <ConfirmationScreen
+            lang={lang}
+            setLang={setLang}
             initialData={reportCardData}
             onConfirm={handleConfirmData}
             onOpenInfo={() => setIsInfoOpen(true)}
@@ -193,6 +195,8 @@ export default function App() {
 
         {screen === "story" && reportCardData && (
           <StoryCards
+            lang={lang}
+            setLang={setLang}
             data={reportCardData}
             stateCode={selectedState}
             onReset={handleReset}
@@ -202,7 +206,7 @@ export default function App() {
       </main>
 
       {/* Global Privacy Dialog Modal (re-accessible everywhere) */}
-      <InfoModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+      <InfoModal lang={lang} isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
     </div>
   );
 }

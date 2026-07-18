@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toPng } from "html-to-image";
 import {
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -10,15 +9,17 @@ import {
   BookOpen,
   Award,
   CalendarCheck,
-  Percent,
-  Clock,
   HelpCircle,
   Check,
-  Share2
+  Share2,
+  Clock
 } from "lucide-react";
 import { ReportCardData, BUNDESLAENDER } from "../types";
+import { LOCALES } from "../locales";
 
 interface StoryCardsProps {
+  lang: "de" | "en";
+  setLang: (lang: "de" | "en") => void;
   data: ReportCardData;
   stateCode: string;
   onReset: () => void;
@@ -97,7 +98,7 @@ function parseGradeToScore(gradeStr: string): number {
   return 7.0;
 }
 
-export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: StoryCardsProps) {
+export default function StoryCards({ lang, setLang, data, stateCode, onReset, onOpenInfo }: StoryCardsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -105,24 +106,35 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
   const cardRef = useRef<HTMLDivElement>(null);
 
   const totalCards = 5;
+  const t = LOCALES[lang];
 
   // Retrieve school days based on chosen state (using 190 days placeholder)
   const stateInfo = BUNDESLAENDER[stateCode] || { name: "Nordrhein-Westfalen", schoolDays: 190 };
   const schoolDays = stateInfo.schoolDays;
 
-  // Calculate statistics
-  const absentExcused = parseInt(data.absentDaysExcused) || 0;
-  const absentUnexcused = parseInt(data.absentDaysUnexcused) || 0;
-  const totalAbsent = absentExcused + absentUnexcused;
+  // Independent calculations for Fehltage (Days) and Fehlstunden (Lessons)
+  const hasDaysInfo = data.absentDaysExcused !== "unleserlich" && data.absentDaysExcused !== "" && !isNaN(parseInt(data.absentDaysExcused));
+  const daysExcused = hasDaysInfo ? (parseInt(data.absentDaysExcused) || 0) : 0;
+  const daysUnexcused = hasDaysInfo ? (parseInt(data.absentDaysUnexcused) || 0) : 0;
+  const totalAbsentDays = daysExcused + daysUnexcused;
 
-  // Unterrichtsstunden = (Schultage - Fehltage gesamt) * 6
-  const lessons = Math.max(0, (schoolDays - totalAbsent) * 6);
+  const hasLessonsInfo = data.absentLessonsExcused !== undefined && data.absentLessonsExcused !== "unleserlich" && data.absentLessonsExcused !== "" && !isNaN(parseInt(data.absentLessonsExcused));
+  const lessonsExcused = hasLessonsInfo ? (parseInt(data.absentLessonsExcused) || 0) : 0;
+  const lessonsUnexcused = hasLessonsInfo ? (parseInt(data.absentLessonsUnexcused) || 0) : 0;
+  const totalAbsentLessons = hasLessonsInfo ? (lessonsExcused + lessonsUnexcused) : (totalAbsentDays * 6);
+
+  // Time spent in the classroom
+  const lessons = hasLessonsInfo 
+    ? Math.max(0, (schoolDays * 6) - totalAbsentLessons)
+    : Math.max(0, (schoolDays - totalAbsentDays) * 6);
 
   // geschÃ¤tzte Hausaufgaben = Schultage * 0,75
   const homework = Math.round(schoolDays * 0.75);
 
-  // Anwesenheitsquote = ((Schultage - Fehltage gesamt) / Schultage) * 100
-  const attendanceRate = Math.max(0, Math.min(100, Math.round(((schoolDays - totalAbsent) / schoolDays) * 1000) / 10));
+  // Anwesenheitsquote = (Anwesenheit in Unterrichtsstunden / Soll-Unterrichtsstunden) * 100
+  const attendanceRate = hasLessonsInfo
+    ? Math.max(0, Math.min(100, Math.round(((schoolDays * 6 - totalAbsentLessons) / (schoolDays * 6)) * 1000) / 10))
+    : Math.max(0, Math.min(100, Math.round(((schoolDays - totalAbsentDays) / schoolDays) * 1000) / 10));
 
   // Sort and extract top three subjects
   const rankedSubjects = data.subjects
@@ -134,19 +146,28 @@ export default function StoryCards({ data, stateCode, onReset, onOpenInfo }: Sto
 
   // Share Stats Handler
   const handleShare = async () => {
-    const textToShare = `ðŸŽ“ Mein Schulzeit Wrapped ${new Date().getFullYear()} (${stateInfo.name})!
+    const textToShare = lang === "en"
+      ? `ðŸŽ“ My School Wrapped ${new Date().getFullYear()} (${stateInfo.name})!
+ðŸ“Š My report:
+â° Lesson Hours: ${lessons.toLocaleString()} in the classroom
+ðŸ“ Homework: ~${homework} solved tasks (estimate)
+ðŸ† Top Subjects: ${topThree.length > 0 ? topThree.map(t => `${t.subject} (${t.grade})`).join(", ") : "No grades extracted"}
+ðŸš€ Attendance: ${attendanceRate}% ${hasDaysInfo ? `(${schoolDays - totalAbsentDays} of ${schoolDays} days present)` : ""}${hasLessonsInfo ? ` with ${totalAbsentLessons} missed lessons` : ""}
+
+Calculate your own School Wrapped at ${window.location.origin} ðŸŽ’ðŸ”¥`
+      : `ðŸŽ“ Mein Schulzeit Wrapped ${new Date().getFullYear()} (${stateInfo.name})!
 ðŸ“Š Meine Bilanz:
 â° Unterrichtsstunden: ${lessons.toLocaleString()} im Klassenzimmer
 ðŸ“ Hausaufgaben: ~${homework} gelÃ¶ste Aufgaben (SchÃ¤tzung)
 ðŸ† Top FÃ¤cher: ${topThree.length > 0 ? topThree.map(t => `${t.subject} (${t.grade})`).join(", ") : "Keine Noten extrahiert"}
-ðŸš€ Anwesenheit: ${attendanceRate}% (${schoolDays - totalAbsent} von ${schoolDays} Tagen da gewesen!)
+ðŸš€ Anwesenheit: ${attendanceRate}% ${hasDaysInfo ? `(${schoolDays - totalAbsentDays} von ${schoolDays} Tagen da gewesen!)` : ""}${hasLessonsInfo ? ` mit ${totalAbsentLessons} Fehlstunden` : ""}
 
 Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸŽ’ðŸ”¥`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Schulzeit Wrapped",
+          title: "School Wrapped",
           text: textToShare,
           url: window.location.origin,
         });
@@ -260,19 +281,47 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
         <div className="flex justify-between items-center px-1">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-[10px] font-bold text-slate-300 tracking-widest uppercase">
-              Schulzeit Wrapped
+              {t.card_title_wrapped}
             </span>
             <span className="text-slate-500 text-[10px]">â€¢</span>
             <span className="font-sans text-[10px] font-semibold text-slate-300 bg-white/10 px-2 py-0.5 rounded-full">
               {stateInfo.name}
             </span>
           </div>
-          <button
-            onClick={onOpenInfo}
-            className="p-1.5 text-slate-300 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
-          >
-            <HelpCircle size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Language Switch pill */}
+            <div className="flex bg-slate-950/60 p-0.5 rounded-full border border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setLang("de")}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full transition-all cursor-pointer ${
+                  lang === "de"
+                    ? "bg-indigo-600 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                DE
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full transition-all cursor-pointer ${
+                  lang === "en"
+                    ? "bg-indigo-600 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                EN
+              </button>
+            </div>
+
+            <button
+              onClick={onOpenInfo}
+              className="p-1.5 text-slate-300 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              <HelpCircle size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -281,12 +330,12 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
         <div
           onClick={prevCard}
           className="w-1/4 h-full cursor-w-resize"
-          title="ZurÃ¼ck"
+          title={t.action_back}
         />
         <div
           onClick={nextCard}
           className="w-3/4 h-full cursor-e-resize"
-          title="Weiter"
+          title={t.action_next}
         />
       </div>
 
@@ -312,10 +361,10 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                 </div>
                 <div>
                   <h3 className="text-sm font-mono uppercase tracking-widest text-violet-300 mb-2">
-                    Dein FleiÃŸ in Zahlen
+                    {t.card1_sub}
                   </h3>
                   <h4 className="font-sans font-black text-2xl tracking-tight leading-tight text-white px-4">
-                    Du hast dieses Jahr im Klassenzimmer geschwitzt:
+                    {t.card1_title}
                   </h4>
                 </div>
                 <div className="my-4">
@@ -323,7 +372,7 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     <CountingNumber value={lessons} />
                   </span>
                   <span className="text-xl font-bold text-violet-200 mt-2 block">
-                    Unterrichtsstunden
+                    {t.card1_unit}
                   </span>
                 </div>
               </div>
@@ -337,10 +386,10 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                 </div>
                 <div>
                   <h3 className="text-sm font-mono uppercase tracking-widest text-rose-300 mb-2">
-                    Nachspielzeit
+                    {t.card2_sub}
                   </h3>
                   <h4 className="font-sans font-black text-2xl tracking-tight leading-tight text-white">
-                    SchÃ¤tzungsweise hast du folgendes bewÃ¤ltigt:
+                    {t.card2_title}
                   </h4>
                 </div>
                 <div className="my-4">
@@ -348,15 +397,15 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     ~<CountingNumber value={homework} />
                   </span>
                   <span className="text-xl font-bold text-rose-200 mt-2 block">
-                    Hausaufgaben
+                    {t.card2_unit}
                   </span>
                 </div>
                 <div className="inline-block bg-black/40 border border-white/10 rounded-2xl p-3 max-w-xs mx-auto">
                   <p className="text-[10px] font-mono tracking-wider text-rose-300 uppercase mb-1">
-                    HINWEIS
+                    {t.card2_note_title}
                   </p>
                   <p className="text-[11px] text-rose-100 leading-normal">
-                    hochgerechnete SchÃ¤tzung, kein exakter Wert (Annahme: 0,75 Aufgaben pro Schultag).
+                    {t.card2_note_desc}
                   </p>
                 </div>
               </div>
@@ -370,17 +419,17 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                 </div>
                 <div>
                   <h3 className="text-sm font-mono uppercase tracking-widest text-emerald-300 mb-1">
-                    Deine Spitzenleistungen
+                    {t.card3_sub}
                   </h3>
                   <h4 className="font-sans font-black text-2xl tracking-tight leading-tight text-white">
-                    Die Hall of Fame deiner Noten:
+                    {t.card3_title}
                   </h4>
                 </div>
 
                 <div className="space-y-3 max-w-xs mx-auto mt-4">
                   {topThree.length === 0 ? (
                     <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-sm text-emerald-200">
-                      Keine lesbaren Noten gefunden, um deine besten FÃ¤cher zu berechnen.
+                      {t.card3_empty}
                     </div>
                   ) : (
                     topThree.map((item, index) => (
@@ -414,10 +463,10 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                 </div>
                 <div>
                   <h3 className="text-sm font-mono uppercase tracking-widest text-cyan-300 mb-2">
-                    Anwesenheit
+                    {t.card4_sub}
                   </h3>
                   <h4 className="font-sans font-black text-2xl tracking-tight leading-tight text-white">
-                    Deine ZuverlÃ¤ssigkeits-Quote:
+                    {t.card4_title}
                   </h4>
                 </div>
 
@@ -451,10 +500,34 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                   </div>
                 </div>
 
-                <p className="text-xs text-cyan-200/80 max-w-xs mx-auto leading-relaxed">
-                  Du hast an <strong>{schoolDays - totalAbsent}</strong> von <strong>{schoolDays}</strong> Tagen aktiv am Unterricht teilgenommen!
-                  {totalAbsent > 0 && ` (${totalAbsent} Fehltage insgesamt)`}
-                </p>
+                <div className="text-xs text-cyan-200/80 max-w-xs mx-auto leading-relaxed space-y-2">
+                  <p>
+                    {hasDaysInfo && hasLessonsInfo
+                      ? t.card4_desc_both
+                          .replace("{days}", String(schoolDays - totalAbsentDays))
+                          .replace("{total}", String(schoolDays))
+                          .replace("{lessons}", String(totalAbsentLessons))
+                      : hasDaysInfo
+                      ? t.card4_desc_days_only
+                          .replace("{days}", String(schoolDays - totalAbsentDays))
+                          .replace("{total}", String(schoolDays))
+                      : t.card4_desc_lessons_only
+                          .replace("{lessons}", String(totalAbsentLessons))
+                    }
+                  </p>
+
+                  {/* Independent Breakdown Indicators */}
+                  <div className="flex justify-center gap-3 text-[10px] font-mono mt-1 opacity-90">
+                    {hasDaysInfo && (
+                      <span className="bg-white/5 border border-white/10 px-2 py-1 rounded-lg">
+                        {t.card4_missed_days_short.replace("{total}", String(totalAbsentDays))}
+                      </span>
+                    )}
+                    <span className="bg-white/5 border border-white/10 px-2 py-1 rounded-lg">
+                      {t.card4_missed_lessons}: {totalAbsentLessons}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -463,13 +536,13 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
               <div className="space-y-4">
                 <div className="text-center mb-3">
                   <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full inline-block mb-1.5 shadow-sm">
-                    JahresrÃ¼ckblick {new Date().getFullYear()}
+                    {t.card5_sub} {new Date().getFullYear()}
                   </span>
                   <h4 className="font-sans font-black text-2xl leading-none text-white tracking-tight">
-                    DEINE SCHULZEIT WRAPPED
+                    {t.card5_title}
                   </h4>
                   <p className="text-[10px] text-slate-400 mt-1 font-mono uppercase tracking-wider">
-                    Zeugnis-Zusammenfassung â€¢ {stateInfo.name}
+                    {t.card5_summary} â€¢ {stateInfo.name}
                   </p>
                 </div>
 
@@ -481,13 +554,13 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     <div>
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Clock size={12} className="text-indigo-400" />
-                        <span className="text-[9px] font-mono font-bold text-indigo-300 uppercase tracking-wider">Zeit im Unterricht</span>
+                        <span className="text-[9px] font-mono font-bold text-indigo-300 uppercase tracking-wider">{t.card5_lessons_label}</span>
                       </div>
                       <span className="font-sans font-black text-2xl text-white block leading-tight">
                         {lessons.toLocaleString()}
                       </span>
                     </div>
-                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">Unterrichtsstunden</span>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">{t.card5_lessons_sub}</span>
                   </div>
 
                   {/* Stats 2: Hausaufgaben */}
@@ -496,13 +569,13 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     <div>
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <BookOpen size={12} className="text-pink-400" />
-                        <span className="text-[9px] font-mono font-bold text-pink-300 uppercase tracking-wider">Hausaufgaben</span>
+                        <span className="text-[9px] font-mono font-bold text-pink-300 uppercase tracking-wider">{t.card5_homework_label}</span>
                       </div>
                       <span className="font-sans font-black text-2xl text-white block leading-tight">
                         ~{homework}
                       </span>
                     </div>
-                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">GelÃ¶ste Aufgaben</span>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-medium">{t.card5_homework_sub}</span>
                   </div>
 
                   {/* Stats 3: Top FÃ¤cher */}
@@ -510,12 +583,12 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-lg -mr-4 -mt-4" />
                     <div className="flex items-center gap-1.5 mb-2.5">
                       <Award size={13} className="text-amber-400" />
-                      <span className="text-[9px] font-mono font-bold text-amber-300 uppercase tracking-wider">Deine akademischen Highlights</span>
+                      <span className="text-[9px] font-mono font-bold text-amber-300 uppercase tracking-wider">{t.card5_highlights_label}</span>
                     </div>
 
                     <div className="flex flex-col gap-2">
                       {topThree.length === 0 ? (
-                        <span className="text-xs text-slate-500 italic">Keine bewerteten FÃ¤cher gefunden</span>
+                        <span className="text-xs text-slate-500 italic">{t.card5_highlights_empty}</span>
                       ) : (
                         topThree.map((item, index) => (
                           <div key={item.id} className="flex justify-between items-center bg-black/30 hover:bg-black/40 px-3 py-2 rounded-xl text-xs font-bold border border-white/[0.03] transition-colors">
@@ -538,17 +611,28 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5 mb-1">
                         <CalendarCheck size={12} className="text-cyan-400" />
-                        <span className="text-[9px] font-mono font-bold text-cyan-300 uppercase tracking-wider">PrÃ¤senzquote</span>
+                        <span className="text-[9px] font-mono font-bold text-cyan-300 uppercase tracking-wider">{t.card5_presence_label}</span>
                       </div>
                       <span className="text-[11px] text-slate-300 leading-snug">
-                        Du warst an <strong>{schoolDays - totalAbsent}</strong> von <strong>{schoolDays}</strong> Tagen aktiv anwesend!
+                        {hasDaysInfo && hasLessonsInfo
+                          ? t.card5_presence_desc_both
+                              .replace("{days}", String(schoolDays - totalAbsentDays))
+                              .replace("{total}", String(schoolDays))
+                              .replace("{lessons}", String(totalAbsentLessons))
+                          : hasDaysInfo
+                          ? t.card5_presence_desc_days
+                              .replace("{days}", String(schoolDays - totalAbsentDays))
+                              .replace("{total}", String(schoolDays))
+                          : t.card5_presence_desc_lessons
+                              .replace("{lessons}", String(totalAbsentLessons))
+                        }
                       </span>
                     </div>
                     <div className="text-right shrink-0 ml-4">
                       <span className="font-sans font-black text-3xl text-cyan-300 block leading-none">
                         {attendanceRate}%
                       </span>
-                      <span className="text-[8px] text-slate-400 font-mono tracking-widest uppercase">STABIL</span>
+                      <span className="text-[8px] text-slate-400 font-mono tracking-widest uppercase">{t.card5_presence_status}</span>
                     </div>
                   </div>
                 </div>
@@ -566,11 +650,11 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                       <div className="w-[2px] h-full bg-white" />
                     </div>
                     <span className="text-[9px] font-mono tracking-[0.15em] text-white/40 uppercase">
-                      SCHULZEITWRAPPED.DE
+                      {t.card_brand_badge}
                     </span>
                   </div>
                   <span className="text-[9px] font-mono text-white/30">
-                    #SCHULZEITWRAPPED
+                    {t.card_hashtag}
                   </span>
                 </div>
               </div>
@@ -589,7 +673,7 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
               ? "text-white/20 border-white/5 bg-white/5 cursor-not-allowed"
               : "text-white border-white/15 bg-white/10 hover:bg-white/20"
           }`}
-          title="ZurÃ¼ck"
+          title={t.action_back}
         >
           <ChevronLeft size={18} />
         </button>
@@ -610,17 +694,17 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
               {downloading ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
-                  Sichern...
+                  {t.action_saving}
                 </>
               ) : downloadSuccess ? (
                 <>
                   <Check size={12} className="stroke-[3]" />
-                  Sicher!
+                  {t.action_saved}
                 </>
               ) : (
                 <>
                   <Download size={12} />
-                  Sichern
+                  {t.action_save}
                 </>
               )}
             </button>
@@ -637,12 +721,12 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
               {shareSuccess ? (
                 <>
                   <Check size={12} className="stroke-[3]" />
-                  Kopiert!
+                  {t.action_shared}
                 </>
               ) : (
                 <>
                   <Share2 size={12} />
-                  Teilen
+                  {t.action_share}
                 </>
               )}
             </button>
@@ -652,10 +736,10 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
             onClick={saveAsImage}
             disabled={downloading}
             className="flex items-center gap-1.5 py-3 px-3.5 rounded-2xl text-[11px] font-medium bg-white/10 hover:bg-white/20 border border-white/15 text-slate-200 transition-colors cursor-pointer"
-            title="Diese Karte als Bild exportieren"
+            title={lang === "en" ? "Export this card as image" : "Diese Karte als Bild exportieren"}
           >
             <Download size={13} />
-            Karte sichern
+            {t.action_save_card}
           </button>
         )}
 
@@ -663,7 +747,7 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
           <button
             onClick={onReset}
             className="p-3 text-white border border-white/15 bg-white/10 hover:bg-white/20 rounded-2xl transition-colors cursor-pointer"
-            title="Neues Zeugnis scannen"
+            title={t.action_restart}
           >
             <RotateCcw size={18} />
           </button>
@@ -676,7 +760,7 @@ Berechne jetzt dein eigenes Schulzeit Wrapped unter ${window.location.origin} ðŸ
                 ? "text-white/20 border-white/5 bg-white/5 cursor-not-allowed"
                 : "text-white border-white/15 bg-white/10 hover:bg-white/20"
             }`}
-            title="Weiter"
+            title={t.action_next}
           >
             <ChevronRight size={18} />
           </button>

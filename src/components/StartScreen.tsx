@@ -1,17 +1,22 @@
 import React, { useState, useRef } from "react";
-import { Upload, HelpCircle, FileText, Image as ImageIcon, Sparkles, CheckCircle2 } from "lucide-react";
+import { Upload, HelpCircle, CheckCircle2 } from "lucide-react";
 import { BUNDESLAENDER } from "../types";
+import { LOCALES } from "../locales";
 
 interface StartScreenProps {
+  lang: "de" | "en";
+  setLang: (lang: "de" | "en") => void;
   onStartExtraction: (base64Image: string, mimeType: string, stateCode: string) => void;
   onOpenInfo: () => void;
 }
 
-export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScreenProps) {
+export default function StartScreen({ lang, setLang, onStartExtraction, onOpenInfo }: StartScreenProps) {
   const [selectedState, setSelectedState] = useState<string>("NW"); // Default to Nordrhein-Westfalen
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const t = LOCALES[lang];
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -26,7 +31,7 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
   const processFile = (file: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setErrorMsg("Bitte lade ein gültiges Bild hoch (PNG, JPEG, WebP).");
+      setErrorMsg(t.file_invalid);
       return;
     }
 
@@ -41,12 +46,12 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
           const base64Data = matches[2];
           onStartExtraction(base64Data, mimeType, selectedState);
         } else {
-          setErrorMsg("Fehler beim Verarbeiten des Bildes. Bitte versuche es erneut.");
+          setErrorMsg(t.file_error);
         }
       }
     };
     reader.onerror = () => {
-      setErrorMsg("Fehler beim Lesen der Datei.");
+      setErrorMsg(t.file_read_error);
     };
     reader.readAsDataURL(file);
   };
@@ -82,34 +87,73 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-semibold tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 uppercase">
-              Jahresrückblick
+              {t.title_schulzeit} {t.title_wrapped}
             </span>
           </div>
-          <button
-            onClick={onOpenInfo}
-            className="p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/40 hover:bg-slate-800/80 transition-colors cursor-pointer"
-            title="Datenschutz anzeigen"
-          >
-            <HelpCircle size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Language Switch pill */}
+            <div className="flex bg-slate-950/60 p-0.5 rounded-full border border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setLang("de")}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full transition-all cursor-pointer ${
+                  lang === "de"
+                    ? "bg-indigo-600 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                DE
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full transition-all cursor-pointer ${
+                  lang === "en"
+                    ? "bg-indigo-600 text-white shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                EN
+              </button>
+            </div>
+
+            <button
+              onClick={onOpenInfo}
+              className="p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/40 hover:bg-slate-800/80 transition-colors cursor-pointer"
+              title={t.privacy_info}
+            >
+              <HelpCircle size={18} />
+            </button>
+          </div>
         </div>
 
         <h1 className="font-sans font-black text-4xl leading-tight tracking-tight mb-3">
-          Schulzeit <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-indigo-400 to-emerald-400">
-            Wrapped
-          </span>
+          {lang === "de" ? (
+            <>
+              Schulzeit <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-indigo-400 to-emerald-400">
+                Wrapped
+              </span>
+            </>
+          ) : (
+            <>
+              School <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-indigo-400 to-emerald-400">
+                Wrapped
+              </span>
+            </>
+          )}
         </h1>
 
         <p className="text-slate-300 text-sm leading-relaxed mb-6">
-          Dein persönlicher Jahresrückblick im Social-Story-Format. Lade dein Zeugnis hoch und entdecke deine Statistik auf einen Blick!
+          {t.desc}
         </p>
 
         {/* Info Banner */}
         <div className="bg-emerald-500/10 border border-emerald-500/20 p-3.5 rounded-2xl mb-8 flex gap-3 items-start">
           <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5" />
           <p className="text-xs text-emerald-300 leading-normal">
-            <strong>Datenschutz garantiert:</strong> Dein Zeugnis-Bild wird nur zur Berechnung genutzt und nirgendwo dauerhaft gespeichert.
+            <strong>{t.privacy_guaranteed}</strong> {t.privacy_desc}
           </p>
         </div>
       </div>
@@ -118,7 +162,7 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
       <div className="space-y-6">
         <div>
           <label className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-wider">
-            1. Wähle dein Bundesland
+            {t.choose_state}
           </label>
           <div className="relative">
             <select
@@ -142,7 +186,7 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
 
         <div>
           <label className="block text-xs font-mono text-slate-400 mb-2 uppercase tracking-wider">
-            2. Zeugnis hochladen
+            {t.upload_title}
           </label>
           <div
             onDragEnter={handleDrag}
@@ -167,10 +211,10 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
               <Upload size={28} />
             </div>
             <p className="font-semibold text-sm mb-1 text-slate-200">
-              Bild auswählen oder herbeiziehen
+              {t.upload_drag_click}
             </p>
             <p className="text-xs text-slate-500 leading-normal max-w-xs px-2">
-              Fotografiere dein Zeugnis oder wähle eine Datei. Die Kamera deines Handys wird direkt unterstützt.
+              {t.upload_info}
             </p>
           </div>
         </div>
@@ -185,13 +229,13 @@ export default function StartScreen({ onStartExtraction, onOpenInfo }: StartScre
       {/* Footer Section */}
       <div className="mt-8 text-center">
         <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
-          <span>Verarbeitung im RAM</span>
+          <span>{t.processing_ram}</span>
           <span>•</span>
           <button
             onClick={onOpenInfo}
             className="underline hover:text-slate-400 font-medium cursor-pointer bg-transparent border-none"
           >
-            Datenschutz-Info
+            {t.privacy_info}
           </button>
         </p>
       </div>
